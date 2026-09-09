@@ -20,7 +20,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 type Priority = 'high' | 'medium' | 'low';
 type Status = 'todo' | 'in_progress' | 'done';
@@ -71,6 +71,14 @@ const emptyDraft: TaskDraft = {
   reminder_frequency: 'Daily',
 };
 
+function createDemoTasks(): Task[] {
+  return demoTasks.map((task, index) => ({
+    ...task,
+    id: `demo-task-${index + 1}`,
+    created_at: new Date().toISOString(),
+  }));
+}
+
 function formatDueDate(value: string) {
   const date = new Date(value);
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date);
@@ -108,6 +116,11 @@ function App() {
 
   async function loadTasks() {
     setIsLoading(true);
+    if (!supabase) {
+      setTasks(createDemoTasks());
+      setIsLoading(false);
+      return;
+    }
     const { data, error } = await supabase.from('taskmate_tasks').select('*').order('due_at', { ascending: true });
     if (error) {
       setNotice('We could not load the shared task list.');
@@ -131,6 +144,21 @@ function App() {
     event.preventDefault();
     if (!draft.title.trim()) return;
     setIsSaving(true);
+    if (!supabase) {
+      const task: Task = {
+        ...draft,
+        id: crypto.randomUUID(),
+        title: draft.title.trim(),
+        status: 'todo',
+        created_at: new Date().toISOString(),
+      };
+      setTasks((current) => [...current, task].sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime()));
+      setDraft(emptyDraft);
+      setIsModalOpen(false);
+      setIsSaving(false);
+      setNotice('Task added for this session.');
+      return;
+    }
     const { data, error } = await supabase.from('taskmate_tasks').insert({ ...draft, title: draft.title.trim(), status: 'todo' }).select().maybeSingle();
     if (error || !data) {
       setNotice('That task could not be saved. Please try again.');
@@ -145,6 +173,11 @@ function App() {
 
   async function updateStatus(task: Task) {
     const nextStatus: Status = task.status === 'todo' ? 'in_progress' : task.status === 'in_progress' ? 'done' : 'todo';
+    if (!supabase) {
+      setTasks((current) => current.map((item) => item.id === task.id ? { ...item, status: nextStatus } : item));
+      if (selectedTask?.id === task.id) setSelectedTask({ ...task, status: nextStatus });
+      return;
+    }
     const { error } = await supabase.from('taskmate_tasks').update({ status: nextStatus }).eq('id', task.id);
     if (error) {
       setNotice('The task status could not be updated.');
@@ -155,6 +188,12 @@ function App() {
   }
 
   async function deleteTask(taskId: string) {
+    if (!supabase) {
+      setTasks((current) => current.filter((task) => task.id !== taskId));
+      setSelectedTask(null);
+      setNotice('Task removed from this session.');
+      return;
+    }
     const { error } = await supabase.from('taskmate_tasks').delete().eq('id', taskId);
     if (error) {
       setNotice('The task could not be removed.');
@@ -212,7 +251,7 @@ function App() {
             <div className="task-toolbar"><div className="filter-tabs">{(['all', 'todo', 'in_progress', 'done'] as Filter[]).map((item) => <button key={item} className={filter === item ? 'filter-tab active' : 'filter-tab'} onClick={() => setFilter(item)}>{item === 'all' ? 'All tasks' : item === 'todo' ? 'To do' : item === 'in_progress' ? 'In progress' : 'Completed'}<span>{item === 'all' ? tasks.length : tasks.filter((task) => task.status === item).length}</span></button>)}</div><label className="search-box"><Search size={17} /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search tasks..." /></label></div>
             <div className="task-list">{isLoading ? <div className="empty-state"><div className="spinner" /><p>Loading your workspace...</p></div> : filteredTasks.length === 0 ? <div className="empty-state"><Circle size={26} /><p>No tasks match this view.</p><button onClick={() => setIsModalOpen(true)}>Create a task</button></div> : filteredTasks.map((task) => <article className={`task-row ${task.status === 'done' ? 'task-complete' : ''}`} key={task.id} onClick={() => setSelectedTask(task)}><button className={`task-check ${task.status}`} aria-label={`Mark ${task.title} as ${task.status === 'done' ? 'to do' : 'done'}`} onClick={(event) => { event.stopPropagation(); void updateStatus(task); }}>{task.status === 'done' ? <Check size={14} /> : task.status === 'in_progress' ? <span /> : null}</button><div className="task-main"><h3>{task.title}</h3><div className="task-meta"><span className={`priority-pill ${priorityMeta[task.priority].className}`}><i className={priorityMeta[task.priority].dot} /> {priorityMeta[task.priority].label}</span><span className="meta-divider" /><span><Clock3 size={13} /> {formatDueDate(task.due_at)}</span><span className="due-label">{relativeDueDate(task.due_at)}</span></div></div><span className={`status-pill ${statusMeta[task.status].className}`}>{statusMeta[task.status].label}</span><button className="row-more" aria-label="Open task details" onClick={(event) => { event.stopPropagation(); setSelectedTask(task); }}>•••</button></article>)}</div>
           </section>
-          <div className="bottom-note"><Sparkles size={16} /><span>Smart reminders are on. We&apos;ll nudge you based on priority and deadline.</span><button>Manage reminders <ChevronDown size={14} /></button></div>
+          <div className="bottom-note"><Sparkles size={16} /><span>{isSupabaseConfigured ? 'Smart reminders are on. We\'ll nudge you based on priority and deadline.' : 'Demo mode is active. Changes remain available until you refresh.'}</span><button>Manage reminders <ChevronDown size={14} /></button></div>
         </section>
       </main>
 

@@ -20,7 +20,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 type Priority = 'high' | 'medium' | 'low';
 type Status = 'todo' | 'in_progress' | 'done';
@@ -108,21 +108,25 @@ function App() {
 
   async function loadTasks() {
     setIsLoading(true);
-    const { data, error } = await supabase.from('taskmate_tasks').select('*').order('due_at', { ascending: true });
-    if (error) {
-      setNotice('We could not load the shared task list.');
+    if (!isSupabaseConfigured) {
+      setTasks(demoTasks.map((task, index) => ({ ...task, id: `demo-${index}`, created_at: new Date().toISOString() })));
+      setNotice('Showing demo tasks while workspace data connects.');
       setIsLoading(false);
       return;
     }
-    if (!data || data.length === 0) {
-      const { data: seeded, error: seedError } = await supabase.from('taskmate_tasks').insert(demoTasks).select();
-      if (seedError) {
-        setNotice('Your task list is ready, but demo tasks could not be added.');
-      } else {
+    try {
+      const { data, error } = await supabase.from('taskmate_tasks').select('*').order('due_at', { ascending: true });
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        const { data: seeded, error: seedError } = await supabase.from('taskmate_tasks').insert(demoTasks).select();
+        if (seedError) throw seedError;
         setTasks((seeded ?? []) as Task[]);
+      } else {
+        setTasks(data as Task[]);
       }
-    } else {
-      setTasks(data as Task[]);
+    } catch {
+      setTasks(demoTasks.map((task, index) => ({ ...task, id: `demo-${index}`, created_at: new Date().toISOString() })));
+      setNotice('Showing demo tasks while workspace data connects.');
     }
     setIsLoading(false);
   }
@@ -131,6 +135,15 @@ function App() {
     event.preventDefault();
     if (!draft.title.trim()) return;
     setIsSaving(true);
+    if (!isSupabaseConfigured) {
+      const localTask: Task = { ...draft, title: draft.title.trim(), status: 'todo', id: `demo-${Date.now()}`, created_at: new Date().toISOString() };
+      setTasks((current) => [...current, localTask].sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime()));
+      setDraft(emptyDraft);
+      setIsModalOpen(false);
+      setNotice('Task added to this demo session.');
+      setIsSaving(false);
+      return;
+    }
     const { data, error } = await supabase.from('taskmate_tasks').insert({ ...draft, title: draft.title.trim(), status: 'todo' }).select().maybeSingle();
     if (error || !data) {
       setNotice('That task could not be saved. Please try again.');
@@ -145,20 +158,24 @@ function App() {
 
   async function updateStatus(task: Task) {
     const nextStatus: Status = task.status === 'todo' ? 'in_progress' : task.status === 'in_progress' ? 'done' : 'todo';
-    const { error } = await supabase.from('taskmate_tasks').update({ status: nextStatus }).eq('id', task.id);
-    if (error) {
-      setNotice('The task status could not be updated.');
-      return;
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from('taskmate_tasks').update({ status: nextStatus }).eq('id', task.id);
+      if (error) {
+        setNotice('The task status could not be updated.');
+        return;
+      }
     }
     setTasks((current) => current.map((item) => item.id === task.id ? { ...item, status: nextStatus } : item));
     if (selectedTask?.id === task.id) setSelectedTask({ ...task, status: nextStatus });
   }
 
   async function deleteTask(taskId: string) {
-    const { error } = await supabase.from('taskmate_tasks').delete().eq('id', taskId);
-    if (error) {
-      setNotice('The task could not be removed.');
-      return;
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from('taskmate_tasks').delete().eq('id', taskId);
+      if (error) {
+        setNotice('The task could not be removed.');
+        return;
+      }
     }
     setTasks((current) => current.filter((task) => task.id !== taskId));
     setSelectedTask(null);

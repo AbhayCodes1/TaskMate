@@ -1,90 +1,39 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
-  Bell,
-  CalendarDays,
-  Check,
-  CheckCircle2,
-  ChevronDown,
-  Circle,
-  Clock3,
-  Flag,
-  LayoutDashboard,
-  ListTodo,
-  Menu,
+  Inbox,
   Plus,
-  Search,
-  Settings,
   Sparkles,
-  Target,
-  Trash2,
-  X,
 } from 'lucide-react';
-import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
+import type { Filter, Status, Task, TaskDraft } from './types/task';
+import { demoTasks, emptyDraft } from './types/task';
+import { Sidebar } from './components/Sidebar';
+import { Topbar } from './components/Topbar';
+import { StatCards } from './components/StatCards';
+import { TaskToolbar } from './components/TaskToolbar';
+import { TaskCard } from './components/TaskCard';
+import { TaskModal } from './components/TaskModal';
+import { TaskDetailModal } from './components/TaskDetailModal';
+import { Toast } from './components/Toast';
 
-type Priority = 'high' | 'medium' | 'low';
-type Status = 'todo' | 'in_progress' | 'done';
-type Filter = 'all' | 'todo' | 'in_progress' | 'done';
-type Reminder = 'Once' | 'Daily' | 'Every 2 days' | 'Weekly';
-
-type Task = {
-  id: string;
-  title: string;
-  priority: Priority;
-  status: Status;
-  due_at: string;
-  reminder_frequency: Reminder;
-  created_at: string;
-};
-
-type TaskDraft = {
-  title: string;
-  priority: Priority;
-  due_at: string;
-  reminder_frequency: Reminder;
-};
-
-const demoTasks: Omit<Task, 'id' | 'created_at'>[] = [
-  { title: 'Review weekly lesson plans', priority: 'high', status: 'in_progress', due_at: '2026-09-08T16:00:00', reminder_frequency: 'Daily' },
-  { title: 'Submit assessment reports', priority: 'high', status: 'todo', due_at: '2026-09-09T11:30:00', reminder_frequency: 'Every 2 days' },
-  { title: 'Prepare science activity materials', priority: 'medium', status: 'todo', due_at: '2026-09-10T09:00:00', reminder_frequency: 'Daily' },
-  { title: 'Reply to parent messages', priority: 'low', status: 'todo', due_at: '2026-09-11T15:30:00', reminder_frequency: 'Weekly' },
-  { title: 'Set up classroom reading corner', priority: 'low', status: 'done', due_at: '2026-09-07T13:00:00', reminder_frequency: 'Once' },
-];
-
-const priorityMeta: Record<Priority, { label: string; className: string; dot: string }> = {
-  high: { label: 'High', className: 'priority-high', dot: 'bg-rose-500' },
-  medium: { label: 'Medium', className: 'priority-medium', dot: 'bg-amber-400' },
-  low: { label: 'Low', className: 'priority-low', dot: 'bg-emerald-500' },
-};
-
-const statusMeta: Record<Status, { label: string; className: string }> = {
-  todo: { label: 'To Do', className: 'status-todo' },
-  in_progress: { label: 'In Progress', className: 'status-progress' },
-  done: { label: 'Done', className: 'status-done' },
-};
-
-const emptyDraft: TaskDraft = {
-  title: '',
-  priority: 'medium',
-  due_at: '2026-09-12T09:00',
-  reminder_frequency: 'Daily',
-};
-
-function formatDueDate(value: string) {
-  const date = new Date(value);
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date);
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
 }
 
-function relativeDueDate(value: string) {
-  const difference = Math.ceil((new Date(value).getTime() - Date.now()) / 86400000);
-  if (difference < 0) return 'Overdue';
-  if (difference === 0) return 'Due today';
-  if (difference === 1) return 'Due tomorrow';
-  return `Due in ${difference} days`;
+function getFormattedDate(): string {
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date());
 }
 
-function App() {
+export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,30 +51,48 @@ function App() {
 
   useEffect(() => {
     if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(''), 3000);
+    const timer = window.setTimeout(() => setNotice(''), 3500);
     return () => window.clearTimeout(timer);
   }, [notice]);
 
   async function loadTasks() {
     setIsLoading(true);
     if (!isSupabaseConfigured) {
-      setTasks(demoTasks.map((task, index) => ({ ...task, id: `demo-${index}`, created_at: new Date().toISOString() })));
+      setTasks(
+        demoTasks.map((task, index) => ({
+          ...task,
+          id: `demo-${index}`,
+          created_at: new Date().toISOString(),
+        }))
+      );
       setNotice('Showing demo tasks while workspace data connects.');
       setIsLoading(false);
       return;
     }
     try {
-      const { data, error } = await supabase.from('taskmate_tasks').select('*').order('due_at', { ascending: true });
+      const { data, error } = await supabase
+        .from('taskmate_tasks')
+        .select('*')
+        .order('due_at', { ascending: true });
       if (error) throw error;
       if (!data || data.length === 0) {
-        const { data: seeded, error: seedError } = await supabase.from('taskmate_tasks').insert(demoTasks).select();
+        const { data: seeded, error: seedError } = await supabase
+          .from('taskmate_tasks')
+          .insert(demoTasks)
+          .select();
         if (seedError) throw seedError;
         setTasks((seeded ?? []) as Task[]);
       } else {
         setTasks(data as Task[]);
       }
     } catch {
-      setTasks(demoTasks.map((task, index) => ({ ...task, id: `demo-${index}`, created_at: new Date().toISOString() })));
+      setTasks(
+        demoTasks.map((task, index) => ({
+          ...task,
+          id: `demo-${index}`,
+          created_at: new Date().toISOString(),
+        }))
+      );
       setNotice('Showing demo tasks while workspace data connects.');
     }
     setIsLoading(false);
@@ -136,19 +103,38 @@ function App() {
     if (!draft.title.trim()) return;
     setIsSaving(true);
     if (!isSupabaseConfigured) {
-      const localTask: Task = { ...draft, title: draft.title.trim(), status: 'todo', id: `demo-${Date.now()}`, created_at: new Date().toISOString() };
-      setTasks((current) => [...current, localTask].sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime()));
+      const localTask: Task = {
+        ...draft,
+        title: draft.title.trim(),
+        status: 'todo',
+        id: `demo-${Date.now()}`,
+        created_at: new Date().toISOString(),
+      };
+      setTasks((current) =>
+        [...current, localTask].sort(
+          (a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime()
+        )
+      );
       setDraft(emptyDraft);
       setIsModalOpen(false);
       setNotice('Task added to this demo session.');
       setIsSaving(false);
       return;
     }
-    const { data, error } = await supabase.from('taskmate_tasks').insert({ ...draft, title: draft.title.trim(), status: 'todo' }).select().maybeSingle();
+    const { data, error } = await supabase
+      .from('taskmate_tasks')
+      .insert({ ...draft, title: draft.title.trim(), status: 'todo' })
+      .select()
+      .maybeSingle();
+
     if (error || !data) {
       setNotice('That task could not be saved. Please try again.');
     } else {
-      setTasks((current) => [...current, data as Task].sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime()));
+      setTasks((current) =>
+        [...current, data as Task].sort(
+          (a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime()
+        )
+      );
       setDraft(emptyDraft);
       setIsModalOpen(false);
       setNotice('Task added to your workspace.');
@@ -157,21 +143,37 @@ function App() {
   }
 
   async function updateStatus(task: Task) {
-    const nextStatus: Status = task.status === 'todo' ? 'in_progress' : task.status === 'in_progress' ? 'done' : 'todo';
+    const nextStatus: Status =
+      task.status === 'todo'
+        ? 'in_progress'
+        : task.status === 'in_progress'
+        ? 'done'
+        : 'todo';
+
     if (isSupabaseConfigured) {
-      const { error } = await supabase.from('taskmate_tasks').update({ status: nextStatus }).eq('id', task.id);
+      const { error } = await supabase
+        .from('taskmate_tasks')
+        .update({ status: nextStatus })
+        .eq('id', task.id);
       if (error) {
         setNotice('The task status could not be updated.');
         return;
       }
     }
-    setTasks((current) => current.map((item) => item.id === task.id ? { ...item, status: nextStatus } : item));
-    if (selectedTask?.id === task.id) setSelectedTask({ ...task, status: nextStatus });
+    setTasks((current) =>
+      current.map((item) => (item.id === task.id ? { ...item, status: nextStatus } : item))
+    );
+    if (selectedTask?.id === task.id) {
+      setSelectedTask({ ...task, status: nextStatus });
+    }
   }
 
   async function deleteTask(taskId: string) {
     if (isSupabaseConfigured) {
-      const { error } = await supabase.from('taskmate_tasks').delete().eq('id', taskId);
+      const { error } = await supabase
+        .from('taskmate_tasks')
+        .delete()
+        .eq('id', taskId);
       if (error) {
         setNotice('The task could not be removed.');
         return;
@@ -182,60 +184,230 @@ function App() {
     setNotice('Task removed from your workspace.');
   }
 
-  const filteredTasks = useMemo(() => tasks.filter((task) => {
-    const matchesFilter = filter === 'all' || task.status === filter;
-    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
-  }), [filter, searchQuery, tasks]);
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchesFilter = filter === 'all' || task.status === filter;
+      const matchesSearch = task.title
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      return matchesFilter && matchesSearch;
+    });
+  }, [filter, searchQuery, tasks]);
 
   const completedCount = tasks.filter((task) => task.status === 'done').length;
   const activeCount = tasks.filter((task) => task.status !== 'done').length;
-  const highPriorityCount = tasks.filter((task) => task.priority === 'high' && task.status !== 'done').length;
-  const completionPercent = tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0;
+  const highPriorityCount = tasks.filter(
+    (task) => task.priority === 'high' && task.status !== 'done'
+  ).length;
+  const completionPercent = tasks.length
+    ? Math.round((completedCount / tasks.length) * 100)
+    : 0;
 
   return (
-    <div className="app-shell">
-      <aside className={`sidebar ${isMenuOpen ? 'sidebar-open' : ''}`}>
-        <div className="brand-mark"><Target size={21} strokeWidth={2.4} /><span>TaskMate</span></div>
-        <div className="workspace-switcher"><div className="workspace-avatar">AT</div><div><p>Alex Thompson</p><span>Personal workspace</span></div><ChevronDown size={15} /></div>
-        <nav className="side-nav" aria-label="Main navigation">
-          <button className="nav-item active"><LayoutDashboard size={18} /> Overview</button>
-          <button className="nav-item" onClick={() => setFilter('all')}><ListTodo size={18} /> All tasks <span>{tasks.length}</span></button>
-          <button className="nav-item" onClick={() => setFilter('done')}><CheckCircle2 size={18} /> Completed</button>
-        </nav>
-        <div className="side-section-label">Workspace</div>
-        <nav className="side-nav">
-          <button className="nav-item"><CalendarDays size={18} /> Calendar</button>
-          <button className="nav-item"><Bell size={18} /> Reminders <span className="notification-dot" /></button>
-          <button className="nav-item"><Settings size={18} /> Settings</button>
-        </nav>
-        <div className="sidebar-tip"><Sparkles size={16} /><div><strong>Stay on top</strong><p>Your highest priority task is due soon.</p></div></div>
-        <div className="sidebar-footer"><div className="user-avatar">AT</div><div><strong>Alex Thompson</strong><span>Teacher account</span></div><button aria-label="Account menu"><ChevronDown size={15} /></button></div>
-      </aside>
+    <div className="flex min-h-screen bg-slate-50 text-slate-800">
+      {/* Sidebar Navigation */}
+      <Sidebar
+        isMenuOpen={isMenuOpen}
+        setIsMenuOpen={setIsMenuOpen}
+        filter={filter}
+        setFilter={setFilter}
+        totalTasks={tasks.length}
+        completedTasks={completedCount}
+        activeTasks={activeCount}
+        onOpenNewTask={() => setIsModalOpen(true)}
+      />
 
-      <main className="main-content">
-        <header className="topbar"><button className="mobile-menu" onClick={() => setIsMenuOpen((open) => !open)} aria-label="Open menu"><Menu size={21} /></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><strong>Overview</strong></div><div className="topbar-actions"><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i /></button><div className="topbar-avatar">AT</div></div></header>
-        <section className="page-content">
-          <div className="welcome-row"><div><p className="eyebrow">Tuesday, September 8, 2026</p><h1>Good morning, Alex<span>.</span></h1><p className="welcome-copy">Here&apos;s what your day looks like. Let&apos;s make it count.</p></div><button className="primary-button" onClick={() => setIsModalOpen(true)}><Plus size={18} /> Add task</button></div>
+      {/* Main Content Area */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <Topbar
+          onOpenMobileMenu={() => setIsMenuOpen(true)}
+          onOpenNewTask={() => setIsModalOpen(true)}
+        />
 
-          <div className="stat-grid">
-            <div className="stat-card"><div className="stat-icon blue"><ListTodo size={19} /></div><div><span>Active tasks</span><strong>{activeCount}</strong><small><b>+2</b> from yesterday</small></div></div>
-            <div className="stat-card"><div className="stat-icon green"><CheckCircle2 size={19} /></div><div><span>Completed</span><strong>{completedCount}</strong><small><b>{completionPercent}%</b> of all tasks</small></div></div>
-            <div className="stat-card"><div className="stat-icon orange"><Flag size={19} /></div><div><span>High priority</span><strong>{highPriorityCount}</strong><small className="muted-small">Needs your attention</small></div></div>
-            <div className="stat-card progress-card"><div className="stat-icon navy"><Target size={19} /></div><div className="progress-stat"><span>Weekly progress</span><strong>{completionPercent}%</strong><div className="progress-track"><div style={{ width: `${completionPercent}%` }} /></div><small>Keep going, you&apos;re doing great</small></div></div>
+        <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 max-w-7xl w-full mx-auto">
+          {/* Welcome / Hero Banner */}
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 mb-1">
+                {getFormattedDate()}
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-900 tracking-tight">
+                {getGreeting()}, Alex<span className="text-indigo-600">.</span>
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                {activeCount === 0
+                  ? 'All caught up! No pending tasks right now.'
+                  : `You have ${activeCount} active ${
+                      activeCount === 1 ? 'task' : 'tasks'
+                    } to accomplish today. Let's make it count.`}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-semibold shadow-soft-sm hover:shadow-soft-md transition-all duration-150 flex-shrink-0"
+            >
+              <Plus size={16} strokeWidth={2.5} />
+              <span>Add Task</span>
+            </button>
           </div>
 
-          <section className="task-section"><div className="section-heading"><div><h2>Your tasks</h2><p>Everything you need to stay organised.</p></div><button className="secondary-button" onClick={() => setIsModalOpen(true)}><Plus size={17} /> New task</button></div>
-            <div className="task-toolbar"><div className="filter-tabs">{(['all', 'todo', 'in_progress', 'done'] as Filter[]).map((item) => <button key={item} className={filter === item ? 'filter-tab active' : 'filter-tab'} onClick={() => setFilter(item)}>{item === 'all' ? 'All tasks' : item === 'todo' ? 'To do' : item === 'in_progress' ? 'In progress' : 'Completed'}<span>{item === 'all' ? tasks.length : tasks.filter((task) => task.status === item).length}</span></button>)}</div><label className="search-box"><Search size={17} /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search tasks..." /></label></div>
-            <div className="task-list">{isLoading ? <div className="empty-state"><div className="spinner" /><p>Loading your workspace...</p></div> : filteredTasks.length === 0 ? <div className="empty-state"><Circle size={26} /><p>No tasks match this view.</p><button onClick={() => setIsModalOpen(true)}>Create a task</button></div> : filteredTasks.map((task) => <article className={`task-row ${task.status === 'done' ? 'task-complete' : ''}`} key={task.id} onClick={() => setSelectedTask(task)}><button className={`task-check ${task.status}`} aria-label={`Mark ${task.title} as ${task.status === 'done' ? 'to do' : 'done'}`} onClick={(event) => { event.stopPropagation(); void updateStatus(task); }}>{task.status === 'done' ? <Check size={14} /> : task.status === 'in_progress' ? <span /> : null}</button><div className="task-main"><h3>{task.title}</h3><div className="task-meta"><span className={`priority-pill ${priorityMeta[task.priority].className}`}><i className={priorityMeta[task.priority].dot} /> {priorityMeta[task.priority].label}</span><span className="meta-divider" /><span><Clock3 size={13} /> {formatDueDate(task.due_at)}</span><span className="due-label">{relativeDueDate(task.due_at)}</span></div></div><span className={`status-pill ${statusMeta[task.status].className}`}>{statusMeta[task.status].label}</span><button className="row-more" aria-label="Open task details" onClick={(event) => { event.stopPropagation(); setSelectedTask(task); }}>•••</button></article>)}</div>
-          </section>
-          <div className="bottom-note"><Sparkles size={16} /><span>Smart reminders are on. We&apos;ll nudge you based on priority and deadline.</span><button>Manage reminders <ChevronDown size={14} /></button></div>
-        </section>
-      </main>
+          {/* Metric Cards */}
+          <StatCards
+            activeCount={activeCount}
+            completedCount={completedCount}
+            highPriorityCount={highPriorityCount}
+            completionPercent={completionPercent}
+            totalTasks={tasks.length}
+          />
 
-      {isModalOpen && <div className="modal-backdrop" onMouseDown={() => setIsModalOpen(false)}><div className="modal-card" onMouseDown={(event) => event.stopPropagation()}><div className="modal-header"><div><p className="eyebrow">New workspace item</p><h2>Add a task</h2><p>Capture the next thing you want to get done.</p></div><button className="close-button" onClick={() => setIsModalOpen(false)} aria-label="Close"><X size={19} /></button></div><form onSubmit={(event) => void addTask(event)}><label className="form-field full"><span>Task name</span><input autoFocus value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="e.g. Review weekly lesson plans" required /></label><div className="form-grid"><label className="form-field"><span>Priority</span><select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}><option value="high">High priority</option><option value="medium">Medium priority</option><option value="low">Low priority</option></select></label><label className="form-field"><span>Deadline</span><input type="datetime-local" value={draft.due_at} onChange={(event) => setDraft({ ...draft, due_at: event.target.value })} required /></label></div><label className="form-field full"><span>Reminder frequency</span><select value={draft.reminder_frequency} onChange={(event) => setDraft({ ...draft, reminder_frequency: event.target.value as Reminder })}><option>Once</option><option>Daily</option><option>Every 2 days</option><option>Weekly</option></select></label><div className="reminder-callout"><Bell size={17} /><div><strong>Smart scheduling enabled</strong><p>TaskMate will gently remind you based on the priority and deadline.</p></div></div><div className="modal-actions"><button type="button" className="cancel-button" onClick={() => setIsModalOpen(false)}>Cancel</button><button type="submit" className="primary-button" disabled={isSaving}>{isSaving ? 'Saving...' : 'Add task'} <Plus size={17} /></button></div></form></div></div>}
-      {selectedTask && <div className="modal-backdrop" onMouseDown={() => setSelectedTask(null)}><div className="detail-card" onMouseDown={(event) => event.stopPropagation()}><div className="detail-top"><span className={`priority-pill ${priorityMeta[selectedTask.priority].className}`}><i className={priorityMeta[selectedTask.priority].dot} /> {priorityMeta[selectedTask.priority].label} priority</span><button className="close-button" onClick={() => setSelectedTask(null)} aria-label="Close"><X size={19} /></button></div><h2>{selectedTask.title}</h2><p className="detail-description">Stay focused on the next small step. You can update progress whenever you make headway.</p><div className="detail-fields"><div><span>Deadline</span><strong><CalendarDays size={15} /> {formatDueDate(selectedTask.due_at)}</strong></div><div><span>Reminder</span><strong><Bell size={15} /> {selectedTask.reminder_frequency}</strong></div><div><span>Status</span><strong className={`status-pill ${statusMeta[selectedTask.status].className}`}>{statusMeta[selectedTask.status].label}</strong></div></div><div className="detail-actions"><button className="danger-button" onClick={() => void deleteTask(selectedTask.id)}><Trash2 size={16} /> Delete task</button><button className="primary-button" onClick={() => void updateStatus(selectedTask)}>{selectedTask.status === 'done' ? 'Reopen task' : 'Mark as done'} <Check size={17} /></button></div></div></div>}
-      {notice && <div className="toast"><CheckCircle2 size={17} /> {notice}</div>}
+          {/* Task Management Panel */}
+          <section className="bg-white rounded-2xl border border-slate-200/90 shadow-soft-xs overflow-hidden">
+            {/* Panel Header */}
+            <div className="px-5 py-4 sm:px-6 sm:py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-base sm:text-lg font-bold font-display text-slate-900 tracking-tight">
+                  Your Workspace Tasks
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Prioritize, filter, and track progress across your daily goals.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                >
+                  <Plus size={14} strokeWidth={2.5} />
+                  <span>New task</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Task Toolbar (Filters & Search) */}
+            <TaskToolbar
+              filter={filter}
+              setFilter={setFilter}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              tasks={tasks}
+            />
+
+            {/* Task Items List */}
+            <div className="divide-y divide-slate-100 min-h-[220px]">
+              {isLoading ? (
+                /* Shimmer loading skeleton */
+                <div className="p-6 space-y-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex items-center gap-4 animate-pulse">
+                      <div className="w-5 h-5 rounded-full bg-slate-200" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-slate-200 rounded w-1/3" />
+                        <div className="h-3 bg-slate-100 rounded w-1/4" />
+                      </div>
+                      <div className="w-16 h-6 bg-slate-100 rounded-lg" />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredTasks.length === 0 ? (
+                /* Empty state */
+                <div className="py-16 px-4 text-center flex flex-col items-center justify-center">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mb-3">
+                    <Inbox size={26} strokeWidth={1.75} />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800 mb-1">
+                    No tasks found
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-xs mb-4">
+                    {searchQuery
+                      ? `No tasks match your search "${searchQuery}". Try a different keyword or reset filters.`
+                      : filter !== 'all'
+                      ? `No tasks currently in the "${filter.replace('_', ' ')}" status.`
+                      : 'You do not have any tasks yet. Create your first task to get started.'}
+                  </p>
+                  <button
+                    onClick={() => {
+                      if (searchQuery) setSearchQuery('');
+                      else if (filter !== 'all') setFilter('all');
+                      else setIsModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition"
+                  >
+                    {searchQuery || filter !== 'all' ? (
+                      'Clear Filters'
+                    ) : (
+                      <>
+                        <Plus size={14} strokeWidth={2.5} />
+                        <span>Create Task</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                filteredTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onUpdateStatus={updateStatus}
+                    onSelectTask={setSelectedTask}
+                    onDeleteTask={deleteTask}
+                  />
+                ))
+              )}
+            </div>
+
+            {/* Bottom Summary Bar */}
+            <div className="px-5 py-3 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>
+                Showing <strong className="text-slate-800 font-semibold">{filteredTasks.length}</strong> of{' '}
+                <strong className="text-slate-800 font-semibold">{tasks.length}</strong> total tasks
+              </span>
+              <span className="hidden sm:inline text-slate-400">
+                Click any task row to view details or press checkmark to advance status
+              </span>
+            </div>
+          </section>
+
+          {/* Smart Scheduling Tip Callout */}
+          <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-indigo-50/80 via-white to-blue-50/80 border border-indigo-100/80 text-xs text-slate-600 shadow-soft-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                <Sparkles size={16} />
+              </div>
+              <p>
+                <strong className="text-slate-800 font-semibold">Smart reminders are active.</strong>{' '}
+                TaskMate prioritizes your workflow and nudges you ahead of deadlines.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 whitespace-nowrap self-start sm:self-auto"
+            >
+              Configure Reminders →
+            </button>
+          </div>
+        </main>
+      </div>
+
+      {/* Modals & Popups */}
+      <TaskModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        draft={draft}
+        setDraft={setDraft}
+        onSubmit={addTask}
+        isSaving={isSaving}
+      />
+
+      <TaskDetailModal
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onUpdateStatus={updateStatus}
+        onDeleteTask={deleteTask}
+      />
+
+      <Toast message={notice} onClose={() => setNotice('')} />
     </div>
   );
 }

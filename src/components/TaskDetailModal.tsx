@@ -44,11 +44,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 transition-all"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-6 animate-fade-in"
       onMouseDown={onClose}
     >
       <div
-        className="w-full max-w-md bg-white rounded-2xl shadow-soft-xl border border-slate-100 overflow-hidden animate-scale-up"
+        className="w-full sm:max-w-md bg-white sm:rounded-2xl rounded-t-3xl shadow-soft-xl border border-slate-100 overflow-hidden animate-scale-up"
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -72,46 +72,50 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         <div className="p-6 space-y-5">
           <div>
             <h2
-              className={`text-lg sm:text-xl font-bold font-display leading-snug tracking-tight mb-2 ${
+              className={`text-xl font-bold font-display leading-snug tracking-tight mb-1.5 ${
                 isDone ? 'line-through text-slate-400' : 'text-slate-900'
               }`}
             >
               {task.title}
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-slate-500 leading-relaxed">
               Review details and track progression on this workspace task.
             </p>
           </div>
 
           {/* Metadata Grid */}
-          <div className="bg-slate-50/80 rounded-xl p-4 border border-slate-100 space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium flex items-center gap-1.5">
-                <CalendarDays size={14} className="text-slate-400" />
+          <div className="bg-slate-50/80 rounded-xl p-4 border border-slate-100 space-y-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-500 font-medium flex items-center gap-2">
+                <CalendarDays size={15} className="text-slate-400" />
                 Deadline
               </span>
-              <span className="font-semibold text-slate-800">
+              <span className="text-sm font-semibold text-slate-800">
                 {formatDetailDate(task.due_at)}
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium flex items-center gap-1.5">
-                <Bell size={14} className="text-slate-400" />
+            <div className="h-px bg-slate-100" />
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-500 font-medium flex items-center gap-2">
+                <Bell size={15} className="text-slate-400" />
                 Reminder
               </span>
-              <span className="font-semibold text-slate-800">
+              <span className="text-sm font-semibold text-slate-800">
                 {task.reminder_frequency}
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium flex items-center gap-1.5">
-                <Clock size={14} className="text-slate-400" />
+            <div className="h-px bg-slate-100" />
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-500 font-medium flex items-center gap-2">
+                <Clock size={15} className="text-slate-400" />
                 Current Status
               </span>
               <span
-                className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${status.badge}`}
+                className={`px-2.5 py-0.5 rounded-md text-xs font-bold border ${status.badge}`}
               >
                 {status.label}
               </span>
@@ -119,31 +123,31 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center justify-between pt-1">
             <button
               onClick={() => onDeleteTask(task.id)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition active:scale-95"
             >
               <Trash2 size={15} />
-              <span>Delete Task</span>
+              <span>Delete</span>
             </button>
 
             <button
               onClick={() => onUpdateStatus(task)}
-              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition shadow-sm ${
+              className={`inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition shadow-sm active:scale-95 ${
                 isDone
                   ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white hover:shadow-glow-emerald'
               }`}
             >
               {isDone ? (
                 <>
-                  <RotateCcw size={14} />
+                  <RotateCcw size={15} />
                   <span>Reopen Task</span>
                 </>
               ) : (
                 <>
-                  <Check size={14} strokeWidth={2.5} />
+                  <Check size={15} strokeWidth={2.5} />
                   <span>Mark as Completed</span>
                 </>
               )}

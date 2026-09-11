@@ -28,7 +28,7 @@ export const StatCards: React.FC<StatCardsProps> = ({
   streak = 0,
 }) => {
   return (
-    <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8" aria-label="Task Statistics">
+    <section className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4" aria-label="Task Statistics">
       {/* 1. Active Tasks */}
       <div className="relative overflow-hidden bg-white p-4 sm:p-5 rounded-2xl border-t-2 border-t-blue-400 border border-slate-200/80 shadow-soft-xs hover:shadow-soft-md hover:border-slate-300 transition-all duration-200 group">
         <div className="flex items-center justify-between mb-3">
@@ -138,8 +138,8 @@ export const StatCards: React.FC<StatCardsProps> = ({
           {completionPercent >= 100
             ? '🎉 All tasks completed!'
             : points > 0
-            ? `⭐ ${points} pts earned`
-            : `${totalTasks - completedCount} remaining`}
+              ? `⭐ ${points} pts earned`
+              : `${totalTasks - completedCount} remaining`}
         </p>
       </div>
     </section>

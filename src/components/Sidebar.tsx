@@ -18,6 +18,8 @@ import {
 import type { Filter, Task, TaskList } from '../types/task';
 import { LIST_COLOR_MAP } from '../types/task';
 
+type SidebarView = 'overview' | 'calendar' | 'reminders' | 'settings' | 'achievements';
+
 interface SidebarProps {
   isMenuOpen: boolean;
   setIsMenuOpen: (open: boolean) => void;
@@ -38,6 +40,11 @@ interface SidebarProps {
   streak: number;
   unlockedAchievementsCount: number;
   onOpenAchievements: () => void;
+  onOpenSettings: () => void;
+  activeView: SidebarView;
+  onSelectView: (view: SidebarView) => void;
+  isSidebarCollapsed: boolean;
+  setIsSidebarCollapsed: (collapsed: boolean) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -58,6 +65,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   streak,
   unlockedAchievementsCount,
   onOpenAchievements,
+  onOpenSettings,
+  activeView,
+  onSelectView,
+  isSidebarCollapsed,
+  setIsSidebarCollapsed,
 }) => {
   const [isListsExpanded, setIsListsExpanded] = useState(true);
   const [isCreatingList, setIsCreatingList] = useState(false);
@@ -100,9 +112,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed md:sticky top-0 left-0 z-50 h-screen w-72 flex-shrink-0 bg-slate-950 border-r border-slate-800/70 text-slate-300 flex flex-col transition-transform duration-300 ease-spring md:translate-x-0 ${
-          isMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
-        }`}
+        className={`fixed md:sticky top-0 left-0 z-50 h-screen w-72 flex-shrink-0 bg-slate-950 border-r border-slate-800/70 text-slate-300 flex flex-col transition-transform duration-300 ease-spring md:translate-x-0 ${isMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+          }`}
       >
         {/* Brand Header */}
         <div className="h-16 px-5 flex items-center justify-between border-b border-slate-800/60 flex-shrink-0">
@@ -167,20 +178,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Quick Action Button */}
-        <div className="px-4 pt-4 pb-2 flex-shrink-0">
-          <button
-            onClick={() => {
-              onOpenNewTask();
-              setIsMenuOpen(false);
-            }}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-sm font-semibold shadow-md shadow-indigo-600/30 hover:shadow-indigo-500/40 hover:-translate-y-px transition-all duration-150"
-          >
-            <Plus size={16} strokeWidth={2.5} />
-            <span>Create New Task</span>
-          </button>
-        </div>
-
         {/* Scrollable Nav */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5 sidebar-scroll">
 
@@ -191,8 +188,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </p>
             <nav className="space-y-0.5" aria-label="Main navigation">
               <button
-                onClick={() => { setFilter('all'); setActiveListId(null); setIsMenuOpen(false); }}
-                className={`${navItemBase} ${filter === 'all' && !activeListId ? navItemActive : navItemInactive}`}
+                onClick={() => {
+                  onSelectView('overview');
+                  setFilter('all');
+                  setActiveListId(null);
+                  setIsMenuOpen(false);
+                }}
+                className={`${navItemBase} ${activeView === 'overview' && filter === 'all' && !activeListId ? navItemActive : navItemInactive}`}
               >
                 <LayoutDashboard
                   size={17}
@@ -205,8 +207,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
 
               <button
-                onClick={() => { setFilter('todo'); setActiveListId(null); setIsMenuOpen(false); }}
-                className={`${navItemBase} ${filter === 'todo' && !activeListId ? navItemActive : navItemInactive}`}
+                onClick={() => {
+                  onSelectView('overview');
+                  setFilter('todo');
+                  setActiveListId(null);
+                  setIsMenuOpen(false);
+                }}
+                className={`${navItemBase} ${activeView === 'overview' && filter === 'todo' && !activeListId ? navItemActive : navItemInactive}`}
               >
                 <ListTodo
                   size={17}
@@ -219,8 +226,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
 
               <button
-                onClick={() => { setFilter('done'); setActiveListId(null); setIsMenuOpen(false); }}
-                className={`${navItemBase} ${filter === 'done' && !activeListId ? navItemActive : navItemInactive}`}
+                onClick={() => {
+                  onSelectView('overview');
+                  setFilter('done');
+                  setActiveListId(null);
+                  setIsMenuOpen(false);
+                }}
+                className={`${navItemBase} ${activeView === 'overview' && filter === 'done' && !activeListId ? navItemActive : navItemInactive}`}
               >
                 <CheckCircle2
                   size={17}
@@ -264,12 +276,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   return (
                     <button
                       key={list.id}
-                      onClick={() => handleListSelect(list.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group animate-list-item-in ${
-                        isActive
-                          ? 'bg-slate-800/80 text-slate-100 border border-slate-700/60'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                      }`}
+                      onClick={() => {
+                        onSelectView('overview');
+                        handleListSelect(list.id);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group animate-list-item-in ${isActive
+                        ? 'bg-slate-800/80 text-slate-100 border border-slate-700/60'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                        }`}
                       style={{ animationDelay: `${index * 30}ms` }}
                     >
                       <span className="text-base flex-shrink-0">{list.icon}</span>
@@ -347,14 +361,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Workspace
             </p>
             <nav className="space-y-0.5">
-              <button className={`${navItemBase} ${navItemInactive}`}>
-                <CalendarDays size={17} className="text-slate-500 group-hover:text-slate-300" />
+              <button
+                onClick={() => { onSelectView('calendar'); setIsMenuOpen(false); }}
+                className={`${navItemBase} ${activeView === 'calendar' ? navItemActive : navItemInactive}`}
+              >
+                <CalendarDays size={17} className={activeView === 'calendar' ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'} />
                 <span className="flex-1 text-left">Calendar</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 border border-slate-700/50">Soon</span>
               </button>
 
-              <button className={`${navItemBase} ${navItemInactive}`}>
-                <Bell size={17} className="text-slate-500 group-hover:text-slate-300" />
+              <button
+                onClick={() => { onSelectView('reminders'); setIsMenuOpen(false); }}
+                className={`${navItemBase} ${activeView === 'reminders' ? navItemActive : navItemInactive}`}
+              >
+                <Bell size={17} className={activeView === 'reminders' ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'} />
                 <span className="flex-1 text-left">Reminders</span>
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
@@ -363,8 +383,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
 
               <button
-                onClick={() => { onOpenAchievements(); setIsMenuOpen(false); }}
-                className={`${navItemBase} ${navItemInactive}`}
+                onClick={() => {
+                  onSelectView('achievements');
+                  onOpenAchievements();
+                  setIsMenuOpen(false);
+                }}
+                className={`${navItemBase} ${activeView === 'achievements' ? navItemActive : navItemInactive}`}
               >
                 <Trophy size={17} className="text-slate-500 group-hover:text-amber-400 transition-colors" />
                 <span className="flex-1 text-left">Achievements</span>
@@ -375,8 +399,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </button>
 
-              <button className={`${navItemBase} ${navItemInactive}`}>
-                <Settings size={17} className="text-slate-500 group-hover:text-slate-300" />
+              <button
+                onClick={() => {
+                  onSelectView('settings');
+                  onOpenSettings();
+                  setIsMenuOpen(false);
+                }}
+                className={`${navItemBase} ${activeView === 'settings' ? navItemActive : navItemInactive}`}
+              >
+                <Settings size={17} className={activeView === 'settings' ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'} />
                 <span className="flex-1 text-left">Settings</span>
               </button>
             </nav>
@@ -396,7 +427,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Lists section with "All Tasks" for active list */}
           {activeListId && (
             <button
-              onClick={() => { setActiveListId(null); setFilter('all'); setIsMenuOpen(false); }}
+              onClick={() => {
+                onSelectView('overview');
+                setActiveListId(null);
+                setFilter('all');
+                setIsMenuOpen(false);
+              }}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold hover:bg-indigo-600/15 transition"
             >
               <FolderOpen size={13} />
